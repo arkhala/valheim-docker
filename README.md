@@ -130,6 +130,7 @@ If you purely want to run this on a Linux-based system, without Docker, take a l
 | WEBHOOK_URL                | `<nothing>`       | FALSE    | Supply this to get information regarding your server's status in a webhook or Discord notification! [How to create a Discord webhook URL](https://help.dashe.io/en/articles/2521940-how-to-create-a-discord-webhook-url)                                                                                                          |
 | WEBHOOK_INCLUDE_PUBLIC_IP  | `0`               | FALSE    | Optionally include your server's public IP in webhook notifications, useful if not using a static IP address. NOTE: If your server is behind a NAT using PAT with more than one external IP address (very unlikely on a home network), this could be inaccurate if your NAT doesn't maintain your server to a single external IP. |
 | PLAYER_EVENT_NOTIFICATIONS | `0`               | FALSE    | Optional, if you have a webhook url supplied and turn this to one. It will post when a player joins/leaves the server.                                                                                                                                                                                                            |
+| JOIN_CODE_NOTIFICATIONS    | `0`               | FALSE    | Optional, if you have a webhook url supplied and turn this to one. It will post when a session is registered or becomes active with the join code.                                                                                                                                                                               |
 | UPDATE_ON_STARTUP          | `1`               | FALSE    | Tries to update the server the container is started.                                                                                                                                                                                                                                                                              |
 | ADDITIONAL_STEAMCMD_ARGS   | ``                | FALSE    | Sets optional arguments for install                                                                                                                                                                                                                                                                                               |
 | BETA_BRANCH                | `public-test`     | FALSE    | Sets the beta branch for the server.                                                                                                                                                                                                                                                                                              |
@@ -256,6 +257,8 @@ services:
       AUTO_BACKUP_ON_SHUTDOWN: 1
       WEBHOOK_URL: "https://discord.com/api/webhooks/IM_A_SNOWFLAKE/AND_I_AM_A_SECRET"
       WEBHOOK_INCLUDE_PUBLIC_IP: 1
+      PLAYER_EVENT_NOTIFICATIONS: 1
+      JOIN_CODE_NOTIFICATIONS: 1
       UPDATE_ON_STARTUP: 0
     volumes:
       - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
@@ -297,6 +300,146 @@ This repo can automatically send notifications to Discord via the WEBHOOK_URL va
 Only use the documentation link below if you want advanced settings!
 
 [Click Here to view documentation on Webhook Support](./docs/webhooks.md)
+
+### Join Code Notifications
+
+The server can automatically broadcast join codes to your Discord channel when game sessions are created or become active. This feature helps players discover and join your server easily.
+
+**Requirements:**
+- A webhook URL must be configured (see [Webhook Support](#webhook-support) above)
+- Set `JOIN_CODE_NOTIFICATIONS=1` in your environment variables
+
+**Implementation:**
+
+1. **Configure Webhook URL** (if not already done):
+   ```yaml
+   environment:
+     WEBHOOK_URL: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+   ```
+
+2. **Enable Join Code Notifications**:
+   ```yaml
+   environment:
+     JOIN_CODE_NOTIFICATIONS: 1
+   ```
+
+3. **Complete Docker Compose Example**:
+   ```yaml
+   version: "3"
+   services:
+     valheim:
+       image: mbround18/valheim:latest
+       stop_signal: SIGINT
+       ports:
+         - "2456:2456/udp"
+         - "2457:2457/udp"
+         - "2458:2458/udp"
+       environment:
+         PORT: 2456
+         NAME: "My Valheim Server"
+         WORLD: "MyWorld"
+         PASSWORD: "MySecretPassword"
+         PUBLIC: 1
+         WEBHOOK_URL: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+         JOIN_CODE_NOTIFICATIONS: 1
+       volumes:
+         - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
+         - ./valheim/server:/home/steam/valheim
+   ```
+
+**What You'll Receive:**
+
+The feature monitors your server logs and sends Discord notifications for:
+
+- **Session Registration**: When your server registers a new game session
+  - Example: "🎮 Server 'My Valheim Server' registered! 🔑 Join Code: 123456"
+
+- **Session Active**: When your server becomes active with player information
+  - Example: "🎮 Server 'My Valheim Server' is active! 🔑 Join Code: 123456 🌐 IP: 192.168.1.100:2456 👥 Players: 2"
+
+**Notes:**
+- Join codes are always 6-digit numbers generated randomly by Valheim
+- The feature requires no Docker image rebuild - it works with existing installations
+- The monitoring runs as a background process and cleans up automatically when the server stops
+- Only works when `PUBLIC=1` and a valid `WEBHOOK_URL` is configured
+
+### Using Join Code Notifications Without Rebuilding
+
+To use the JOIN_CODE_NOTIFICATIONS feature without rebuilding the Docker image, you need to mount the required scripts as volumes:
+
+1. **Extract the required scripts from the container:**
+   ```bash
+   # Create a scripts directory
+   mkdir -p ./scripts
+   
+   # Copy all required scripts to your host machine
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/entrypoint.sh > ./scripts/entrypoint.sh
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/start_valheim.sh > ./scripts/start_valheim.sh
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/join_code_monitor.sh > ./scripts/join_code_monitor.sh
+   
+   # Make them executable
+   chmod +x ./scripts/*.sh
+   ```
+
+2. **Mount all scripts in your Docker Compose:**
+   ```yaml
+   version: '3.8'
+
+   services:
+     valheim:
+       image: mbround18/valheim:latest
+       ports:
+         - "2456:2456/udp"
+         - "2457:2457/udp"
+         - "2458:2458/udp"
+       environment:
+         PORT: 2456
+         NAME: "My Valheim Server"
+         WORLD: "MyWorld"
+         PASSWORD: "MySecretPassword"
+         PUBLIC: 1
+         WEBHOOK_URL: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+         JOIN_CODE_NOTIFICATIONS: 1
+       volumes:
+         - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
+         - ./valheim/server:/home/steam/valheim
+         # Mount updated scripts with join code notification support
+         - ./scripts/entrypoint.sh:/home/steam/scripts/entrypoint.sh:ro
+         - ./scripts/start_valheim.sh:/home/steam/scripts/start_valheim.sh:ro
+         - ./scripts/join_code_monitor.sh:/home/steam/scripts/join_code_monitor.sh:ro
+   ```
+
+3. **Start your server:**
+   ```bash
+   docker-compose up -d
+   ```
+
+**Why These Scripts Are Required:**
+- `entrypoint.sh`: Updated to pass JOIN_CODE_NOTIFICATIONS environment variable to cron processes
+- `start_valheim.sh`: Modified to start the join code monitoring process when enabled
+- `join_code_monitor.sh`: The main script that monitors logs and sends notifications
+
+### Customizing Join Code Notifications
+
+You can customize the join code monitoring behavior by modifying the extracted scripts:
+
+**Customize Notifications:**
+- Edit `join_code_monitor.sh` to change webhook message format, add custom logic, or integrate with different systems
+- Modify parsing logic for different log formats
+- Add custom filtering or rate limiting
+
+**Example Customizations:**
+- Change notification messages in the `parse_session_registered()` and `parse_session_active()` functions
+- Add additional webhook destinations
+- Implement rate limiting to prevent spam
+- Add custom filtering based on server name or player count
+
+This approach allows you to:
+- Customize notification messages and formatting
+- Add additional webhook destinations  
+- Modify parsing logic for different log formats
+- Add custom filtering or rate limiting
+- All without rebuilding the Docker image!
 
 ## Guides
 

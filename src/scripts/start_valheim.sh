@@ -33,6 +33,7 @@ cleanup() {
   fi
   [[ -n $TAIL_PID ]] && kill "$TAIL_PID"
   [[ -n $ODIN_HTTP_SERVER_PID ]] && kill "$ODIN_HTTP_SERVER_PID"
+  [[ -n $JOIN_CODE_MONITOR_PID ]] && kill "$JOIN_CODE_MONITOR_PID"
 }
 
 # Function to handle BepInEx installation
@@ -197,6 +198,13 @@ sleep 2
 log "Herding Graydwarfs..."
 odin logs --watch &
 export TAIL_PID=$!
+
+# Start join code monitoring if enabled
+if [ "${JOIN_CODE_NOTIFICATIONS:-0}" = "1" ]; then
+  log "Starting join code monitoring..."
+  /bin/bash /home/steam/scripts/join_code_monitor.sh &
+  export JOIN_CODE_MONITOR_PID=$!
+fi
 
 # Wait for the tail process to exit
 wait $TAIL_PID
