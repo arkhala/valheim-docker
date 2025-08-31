@@ -363,6 +363,59 @@ The feature monitors your server logs and sends Discord notifications for:
 - The monitoring runs as a background process and cleans up automatically when the server stops
 - Only works when `PUBLIC=1` and a valid `WEBHOOK_URL` is configured
 
+### Customizing Join Code Notifications
+
+You can customize the join code monitoring script without rebuilding the Docker image by mounting a modified version:
+
+1. **Extract the script from the container:**
+   ```bash
+   # Copy the script to your host machine
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/join_code_monitor.sh > ./join_code_monitor.sh
+   
+   # Make it executable
+   chmod +x ./join_code_monitor.sh
+   ```
+
+2. **Modify the script as needed** (e.g., change webhook message format, add custom logic)
+
+3. **Mount the modified script in your Docker Compose:**
+   ```yaml
+   version: '3.8'
+
+   services:
+     valheim:
+       image: mbround18/valheim:latest
+       ports:
+         - "2456:2456/udp"
+         - "2457:2457/udp"
+         - "2458:2458/udp"
+       environment:
+         PORT: 2456
+         NAME: "My Valheim Server"
+         WORLD: "MyWorld"
+         PASSWORD: "MySecretPassword"
+         PUBLIC: 1
+         WEBHOOK_URL: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+         JOIN_CODE_NOTIFICATIONS: 1
+       volumes:
+         - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
+         - ./valheim/server:/home/steam/valheim
+         # Mount your custom join code monitoring script
+         - ./join_code_monitor.sh:/home/steam/scripts/join_code_monitor.sh:ro
+   ```
+
+4. **Start your server:**
+   ```bash
+   docker-compose up -d
+   ```
+
+This approach allows you to:
+- Customize notification messages and formatting
+- Add additional webhook destinations
+- Modify parsing logic for different log formats
+- Add custom filtering or rate limiting
+- All without rebuilding the Docker image!
+
 ## Guides
 
 ### [How to Transfer Files](./docs/tutorials/how-to-transfer-files.md)
