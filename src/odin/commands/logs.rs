@@ -1,4 +1,4 @@
-use crate::log_filters::{handle_join_code_events, handle_launch_probes, handle_player_events};
+use crate::log_filters::{handle_launch_probes, handle_player_events};
 use crate::utils::common_paths::log_directory;
 use crate::utils::environment::is_env_var_truthy;
 use anyhow::{Context, Result};
@@ -41,10 +41,6 @@ fn handle_line_core(path: &PathBuf, line: &str) {
 
   if is_env_var_truthy("PLAYER_EVENT_NOTIFICATIONS") {
     handle_player_events(line);
-  }
-
-  if is_env_var_truthy("JOIN_CODE_NOTIFICATIONS") {
-    handle_join_code_events(line);
   }
 
   let file_name = match path.file_name().and_then(|name| name.to_str()) {
@@ -227,56 +223,5 @@ pub async fn invoke(lines: Option<u16>, watch: bool) {
     watch_logs(log_path).await;
   } else {
     print_logs(log_path, lines);
-  }
-}
-
-#[cfg(test)]
-mod integration_tests {
-  use super::*;
-  use std::env;
-  use serial_test::serial;
-
-  #[test]
-  #[serial]
-  fn test_join_code_notifications_environment_variable() {
-    // Test that the environment variable is properly read
-    // Note: is_env_var_truthy is cached, so we test the underlying fetch_var function
-    env::set_var("JOIN_CODE_NOTIFICATIONS", "1");
-    assert_eq!(crate::utils::environment::fetch_var("JOIN_CODE_NOTIFICATIONS", "0"), "1");
-
-    env::set_var("JOIN_CODE_NOTIFICATIONS", "0");
-    assert_eq!(crate::utils::environment::fetch_var("JOIN_CODE_NOTIFICATIONS", "0"), "0");
-
-    env::remove_var("JOIN_CODE_NOTIFICATIONS");
-    assert_eq!(crate::utils::environment::fetch_var("JOIN_CODE_NOTIFICATIONS", "0"), "0");
-  }
-
-  #[test]
-  fn test_handle_line_core_with_join_code_enabled() {
-    // Set the environment variable to enable join code notifications
-    env::set_var("JOIN_CODE_NOTIFICATIONS", "1");
-    
-    let test_path = PathBuf::from("/test/valheim_server.log");
-    let session_registered_line = "08/30/2025 12:30:52: Session \"TestServer\" registered with join code 795570";
-    let session_active_line = "08/30/2025 12:30:53: Session \"TestServer\" with join code 795570 and IP [127.0.0.1:2456] is active with 0 player(s)";
-    
-    // This should not panic and should process the lines
-    handle_line_core(&test_path, session_registered_line);
-    handle_line_core(&test_path, session_active_line);
-    
-    // Clean up
-    env::remove_var("JOIN_CODE_NOTIFICATIONS");
-  }
-
-  #[test]
-  fn test_handle_line_core_with_join_code_disabled() {
-    // Ensure the environment variable is not set
-    env::remove_var("JOIN_CODE_NOTIFICATIONS");
-    
-    let test_path = PathBuf::from("/test/valheim_server.log");
-    let session_registered_line = "08/30/2025 12:30:52: Session \"TestServer\" registered with join code 795570";
-    
-    // This should not panic and should skip join code processing
-    handle_line_core(&test_path, session_registered_line);
   }
 }
