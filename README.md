@@ -363,22 +363,25 @@ The feature monitors your server logs and sends Discord notifications for:
 - The monitoring runs as a background process and cleans up automatically when the server stops
 - Only works when `PUBLIC=1` and a valid `WEBHOOK_URL` is configured
 
-### Customizing Join Code Notifications
+### Using Join Code Notifications Without Rebuilding
 
-You can customize the join code monitoring script without rebuilding the Docker image by mounting a modified version:
+To use the JOIN_CODE_NOTIFICATIONS feature without rebuilding the Docker image, you need to mount the required scripts as volumes:
 
-1. **Extract the script from the container:**
+1. **Extract the required scripts from the container:**
    ```bash
-   # Copy the script to your host machine
-   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/join_code_monitor.sh > ./join_code_monitor.sh
+   # Create a scripts directory
+   mkdir -p ./scripts
    
-   # Make it executable
-   chmod +x ./join_code_monitor.sh
+   # Copy all required scripts to your host machine
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/entrypoint.sh > ./scripts/entrypoint.sh
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/start_valheim.sh > ./scripts/start_valheim.sh
+   docker run --rm mbround18/valheim:latest cat /home/steam/scripts/join_code_monitor.sh > ./scripts/join_code_monitor.sh
+   
+   # Make them executable
+   chmod +x ./scripts/*.sh
    ```
 
-2. **Modify the script as needed** (e.g., change webhook message format, add custom logic)
-
-3. **Mount the modified script in your Docker Compose:**
+2. **Mount all scripts in your Docker Compose:**
    ```yaml
    version: '3.8'
 
@@ -400,18 +403,40 @@ You can customize the join code monitoring script without rebuilding the Docker 
        volumes:
          - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
          - ./valheim/server:/home/steam/valheim
-         # Mount your custom join code monitoring script
-         - ./join_code_monitor.sh:/home/steam/scripts/join_code_monitor.sh:ro
+         # Mount updated scripts with join code notification support
+         - ./scripts/entrypoint.sh:/home/steam/scripts/entrypoint.sh:ro
+         - ./scripts/start_valheim.sh:/home/steam/scripts/start_valheim.sh:ro
+         - ./scripts/join_code_monitor.sh:/home/steam/scripts/join_code_monitor.sh:ro
    ```
 
-4. **Start your server:**
+3. **Start your server:**
    ```bash
    docker-compose up -d
    ```
 
+**Why These Scripts Are Required:**
+- `entrypoint.sh`: Updated to pass JOIN_CODE_NOTIFICATIONS environment variable to cron processes
+- `start_valheim.sh`: Modified to start the join code monitoring process when enabled
+- `join_code_monitor.sh`: The main script that monitors logs and sends notifications
+
+### Customizing Join Code Notifications
+
+You can customize the join code monitoring behavior by modifying the extracted scripts:
+
+**Customize Notifications:**
+- Edit `join_code_monitor.sh` to change webhook message format, add custom logic, or integrate with different systems
+- Modify parsing logic for different log formats
+- Add custom filtering or rate limiting
+
+**Example Customizations:**
+- Change notification messages in the `parse_session_registered()` and `parse_session_active()` functions
+- Add additional webhook destinations
+- Implement rate limiting to prevent spam
+- Add custom filtering based on server name or player count
+
 This approach allows you to:
 - Customize notification messages and formatting
-- Add additional webhook destinations
+- Add additional webhook destinations  
 - Modify parsing logic for different log formats
 - Add custom filtering or rate limiting
 - All without rebuilding the Docker image!
