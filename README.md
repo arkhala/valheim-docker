@@ -257,6 +257,8 @@ services:
       AUTO_BACKUP_ON_SHUTDOWN: 1
       WEBHOOK_URL: "https://discord.com/api/webhooks/IM_A_SNOWFLAKE/AND_I_AM_A_SECRET"
       WEBHOOK_INCLUDE_PUBLIC_IP: 1
+      PLAYER_EVENT_NOTIFICATIONS: 1
+      JOIN_CODE_NOTIFICATIONS: 1
       UPDATE_ON_STARTUP: 0
     volumes:
       - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
@@ -298,6 +300,68 @@ This repo can automatically send notifications to Discord via the WEBHOOK_URL va
 Only use the documentation link below if you want advanced settings!
 
 [Click Here to view documentation on Webhook Support](./docs/webhooks.md)
+
+### Join Code Notifications
+
+The server can automatically broadcast join codes to your Discord channel when game sessions are created or become active. This feature helps players discover and join your server easily.
+
+**Requirements:**
+- A webhook URL must be configured (see [Webhook Support](#webhook-support) above)
+- Set `JOIN_CODE_NOTIFICATIONS=1` in your environment variables
+
+**Implementation:**
+
+1. **Configure Webhook URL** (if not already done):
+   ```yaml
+   environment:
+     WEBHOOK_URL: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+   ```
+
+2. **Enable Join Code Notifications**:
+   ```yaml
+   environment:
+     JOIN_CODE_NOTIFICATIONS: 1
+   ```
+
+3. **Complete Docker Compose Example**:
+   ```yaml
+   version: "3"
+   services:
+     valheim:
+       image: mbround18/valheim:latest
+       stop_signal: SIGINT
+       ports:
+         - "2456:2456/udp"
+         - "2457:2457/udp"
+         - "2458:2458/udp"
+       environment:
+         PORT: 2456
+         NAME: "My Valheim Server"
+         WORLD: "MyWorld"
+         PASSWORD: "MySecretPassword"
+         PUBLIC: 1
+         WEBHOOK_URL: "https://discord.com/api/webhooks/YOUR_WEBHOOK_ID/YOUR_WEBHOOK_TOKEN"
+         JOIN_CODE_NOTIFICATIONS: 1
+       volumes:
+         - ./valheim/saves:/home/steam/.config/unity3d/IronGate/Valheim
+         - ./valheim/server:/home/steam/valheim
+   ```
+
+**What You'll Receive:**
+
+The feature monitors your server logs and sends Discord notifications for:
+
+- **Session Registration**: When your server registers a new game session
+  - Example: "🎮 Server 'My Valheim Server' registered! 🔑 Join Code: 123456"
+
+- **Session Active**: When your server becomes active with player information
+  - Example: "🎮 Server 'My Valheim Server' is active! 🔑 Join Code: 123456 🌐 IP: 192.168.1.100:2456 👥 Players: 2"
+
+**Notes:**
+- Join codes are always 6-digit numbers generated randomly by Valheim
+- The feature requires no Docker image rebuild - it works with existing installations
+- The monitoring runs as a background process and cleans up automatically when the server stops
+- Only works when `PUBLIC=1` and a valid `WEBHOOK_URL` is configured
 
 ## Guides
 
