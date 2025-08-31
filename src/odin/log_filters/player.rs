@@ -254,6 +254,30 @@ fn extract_player_id_and_zdo_index(id_str: Option<&str>) -> Result<(u64, u16), S
   }
 }
 
+/// Handles crossplay join code events by parsing log lines for join codes.
+/// When a crossplay join code is detected, it sends a notification.
+///
+/// # Arguments
+/// * `line` - A `&str` representing a single line from the log.
+pub fn handle_crossplay_events(line: &str) {
+  // Common patterns for Valheim crossplay join codes
+  // Match patterns like "Join code: ABC123" or "Crossplay join code: ABC123"
+  let join_code_regex = Regex::new(r"(?i)(?:join\s+code|crossplay.*code):\s*([A-Z0-9]{6})")
+    .expect("Failed to compile join code regex");
+
+  if let Some(captures) = join_code_regex.captures(line) {
+    if let Some(join_code) = captures.get(1) {
+      let code = join_code.as_str();
+      info!("Crossplay join code detected: {}", code);
+      
+      NotificationEvent::Crossplay.send_notification(Some(format!(
+        "Crossplay join code available: {}",
+        code
+      )));
+    }
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -337,5 +361,24 @@ mod tests {
     };
     let result = player_list.save();
     assert!(result);
+  }
+
+  #[test]
+  fn test_crossplay_join_code_detection() {
+    // Test basic join code pattern
+    let log_line1 = "2025-01-20T12:00:00.000Z [Info]: Join code: ABC123";
+    handle_crossplay_events(log_line1);
+    
+    // Test crossplay join code pattern
+    let log_line2 = "2025-01-20T12:00:00.000Z [Info]: Crossplay join code: XYZ789";
+    handle_crossplay_events(log_line2);
+    
+    // Test case insensitive matching
+    let log_line3 = "2025-01-20T12:00:00.000Z [Info]: join code: DEF456";
+    handle_crossplay_events(log_line3);
+    
+    // Test that non-matching lines don't trigger
+    let log_line4 = "2025-01-20T12:00:00.000Z [Info]: Player joined the server";
+    handle_crossplay_events(log_line4);
   }
 }

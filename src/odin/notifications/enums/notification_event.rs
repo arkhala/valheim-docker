@@ -21,6 +21,7 @@ pub enum NotificationEvent {
   Start(EventStatus),
   Stop(EventStatus),
   Player(PlayerStatus),
+  Crossplay,
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq)]
@@ -170,11 +171,13 @@ impl fmt::Display for NotificationEvent {
 impl std::str::FromStr for NotificationEvent {
   type Err = VariantNotFound;
   fn from_str(s: &str) -> Result<NotificationEvent, Self::Err> {
-    use NotificationEvent::{Broadcast, Player, Start, Stop, Update};
+    use NotificationEvent::{Broadcast, Crossplay, Player, Start, Stop, Update};
     let parts: Vec<&str> = s.split(' ').collect();
     let event = parts[0];
     if event.eq(Broadcast.to_string().as_str()) {
       Ok(Broadcast)
+    } else if event.eq(Crossplay.to_string().as_str()) {
+      Ok(Crossplay)
     } else if event.eq("Player") {
       let player_status = PlayerStatus::from_str(parts[1])?;
       Ok(Player(player_status))
@@ -198,11 +201,16 @@ mod notification_event_tests {
   use super::*;
   use crate::notifications::enums::player::PlayerStatus;
   use std::str::FromStr;
-  use NotificationEvent::{Broadcast, Player};
+  use NotificationEvent::{Broadcast, Crossplay, Player};
 
   #[test]
   fn parse_enum_from_string() {
     assert_eq!(NotificationEvent::from_str("Broadcast").unwrap(), Broadcast);
+  }
+
+  #[test]
+  fn parse_crossplay_enum_from_string() {
+    assert_eq!(NotificationEvent::from_str("Crossplay").unwrap(), Crossplay);
   }
 
   #[test]

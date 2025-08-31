@@ -1,4 +1,4 @@
-use crate::log_filters::{handle_launch_probes, handle_player_events};
+use crate::log_filters::{handle_crossplay_events, handle_launch_probes, handle_player_events};
 use crate::utils::common_paths::log_directory;
 use crate::utils::environment::is_env_var_truthy;
 use anyhow::{Context, Result};
@@ -41,6 +41,10 @@ fn handle_line_core(path: &PathBuf, line: &str) {
 
   if is_env_var_truthy("PLAYER_EVENT_NOTIFICATIONS") {
     handle_player_events(line);
+  }
+
+  if is_env_var_truthy("CROSSPLAY_JOIN_CODE_NOTIFICATIONS") {
+    handle_crossplay_events(line);
   }
 
   let file_name = match path.file_name().and_then(|name| name.to_str()) {
